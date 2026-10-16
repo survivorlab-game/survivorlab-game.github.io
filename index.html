@@ -124,7 +124,7 @@
               opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
   #gameover.show { opacity: 1; }
 </style>
-<style>#title-debug,#grant{display:none!important}</style>
+<style>#title-debug,#grant,#stats,#sys,#gems{display:none!important}</style>
 <script>try{if(location.search)history.replaceState(null,"",location.pathname)}catch(_){}</script>
 </head>
 <body>
@@ -314,7 +314,7 @@
 
   try {
     const build = await getBuild();
-    info.textContent = `build ${build.id}`;
+    info.textContent = "";
     const mod = await import(`./app.js?v=${build.id}`);
 
     // wasm を自前で取得して読み込み進捗を表示する (表示は展開後サイズ基準)
@@ -328,7 +328,7 @@
         if (done) { controller.close(); return; }
         loaded += value.length;
         const pct = build.wasm_bytes ? Math.min(99, Math.floor((loaded / build.wasm_bytes) * 100)) : "?";
-        info.textContent = `build ${build.id}  loading ${pct}%`;
+        info.textContent = `loading ${pct}%`;
         controller.enqueue(value);
       },
     });
@@ -339,7 +339,7 @@
       if (!String(e).includes("Using exceptions for control flow")) throw e;
     });
 
-    info.textContent = `build ${build.id}`;
+    info.textContent = "";
 
     // Auto-reload when a new build is published. To save mobile data: check only while the page is visible,
     // every 10 s, and immediately when the page becomes visible again (one check is about 0.8 KB).
