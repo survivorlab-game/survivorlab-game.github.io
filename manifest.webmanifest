@@ -1,0 +1,14 @@
+{
+  "name": "Survivor Lab",
+  "short_name": "Survivor Lab",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#14161f",
+  "theme_color": "#14161f",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

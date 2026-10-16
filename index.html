@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Survivor Lab</title>
+<!-- Home-screen icon / full-screen when added to the home screen (manifest.webmanifest + icon-180.png / icon-512.png) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Survivor Lab">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14161f">
+<style>
+  html, body { margin: 0; height: 100%; background: #14161f; overflow: hidden; overscroll-behavior: none; }
+  #wrap { position: fixed; inset: 0; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #info { position: fixed; left: 8px; top: calc(env(safe-area-inset-top) + 8px); color: #9aa; font: 12px/1.4 monospace;
+          pointer-events: none; text-shadow: 0 0 3px #000; }
+  #stats { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 8px); color: #cfe; font: 12px/1.4 monospace;
+           text-align: right; white-space: pre; pointer-events: none; text-shadow: 0 0 3px #000; }
+  #sys { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 92px); color: #fd9; font: 12px/1.4 monospace;
+         text-align: right; white-space: pre; pointer-events: none; text-shadow: 0 0 3px #000; }
+  #kills { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 136px); color: #fff; font: 14px/1.4 monospace;
+           text-align: right; white-space: pre; pointer-events: none; text-shadow: 0 0 3px #000; }
+  #level { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 160px); color: #fe8; font: 14px/1.4 monospace;
+           text-align: right; white-space: pre; pointer-events: none; text-shadow: 0 0 3px #000; }
+  #gems { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 184px); color: #5fe9ff; font: 14px/1.4 monospace;
+           text-align: right; white-space: pre; pointer-events: none; text-shadow: 0 0 3px #000; }
+  /* スキルのボタン: 右下。使えるときは橙に光る (点滅はしない)。押すと data-press="1" になり、ゲーム側が読む */
+  #skill { position: fixed; right: calc(env(safe-area-inset-right) + 18px); bottom: calc(env(safe-area-inset-bottom) + 28px);
+           z-index: 4; width: 92px; height: 92px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+           color: #fff; font: 700 20px/1 sans-serif; text-shadow: 0 0 3px #000; user-select: none; -webkit-user-select: none;
+           background: rgba(255, 255, 255, 0.10); border: 3px solid rgba(255, 255, 255, 0.35); touch-action: none; }
+  #skill.ready { background: rgba(255, 138, 61, 0.45); border-color: #ff8a3d; }
+  #skill:active { transform: scale(0.94); }
+  /* タイトル画面: ページを開くと最初に出る。ボタンを押すとゲームが始まり、ふわっと消える (点滅しない) */
+  #title { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center;
+           gap: 12px; padding: 24px 16px; background: rgba(12, 14, 22, 0.94); color: #fff; font: 16px/1.5 sans-serif;
+           opacity: 0; pointer-events: none; transition: opacity 0.6s ease; overflow-y: auto; }
+  #title.show { opacity: 1; pointer-events: auto; }
+  #title-name { font: 700 34px/1.2 sans-serif; letter-spacing: 0.12em; margin-bottom: 8px; text-align: center; }
+  #title button { width: min(86vw, 420px); min-height: 56px; font: 18px/1.4 sans-serif; color: #fff; cursor: pointer;
+                  background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 12px; }
+  /* 店: タイトルとは別の画面。「店」ボタンで開き、「もどる」で閉じる (ふわっと切り替わる。点滅しない) */
+  #shop-screen { position: fixed; inset: 0; z-index: 11; display: flex; flex-direction: column; align-items: center; gap: 12px;
+                 padding: calc(env(safe-area-inset-top) + 16px) 16px 24px; background: #0c0e16; color: #fff; font: 16px/1.5 sans-serif;
+                 opacity: 0; pointer-events: none; transition: opacity 0.35s ease; overflow-y: auto; }
+  #shop-screen.show { opacity: 1; pointer-events: auto; }
+  #shop-head { display: flex; justify-content: space-between; align-items: center; width: min(92vw, 460px); }
+  #shop-screen button { color: #fff; cursor: pointer; font: 16px/1.4 sans-serif; border-radius: 12px;
+                        background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.35); }
+  #shop-screen button:active { background: rgba(255, 255, 255, 0.28); }
+  #shop-back { min-height: 44px; padding: 0 16px; }
+  #shop-points { font: 700 22px/1.4 monospace; color: #fe8; }
+  #shop-name { font: 700 30px/1.2 sans-serif; letter-spacing: 0.2em; margin: 4px 0; }
+  #shop-note { width: min(92vw, 460px); color: #9aa; font-size: 13px; text-align: center; }
+  #shop { display: flex; flex-direction: column; gap: 10px; width: min(92vw, 460px); }
+  .perk { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px;
+          background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); }
+  .perk-name { font-size: 17px; font-weight: 700; }
+  .perk-lv { color: #fe8; letter-spacing: 0.15em; font-size: 14px; }
+  #shop-screen .perk button { min-width: 96px; min-height: 48px; font-weight: 700; background: rgba(255, 138, 61, 0.28); border-color: #ff8a3d; }
+  #shop-screen .perk button.locked { opacity: 0.4; }
+  #erase-save { min-height: 44px; padding: 0 14px; margin-top: 4px; font-size: 14px; }
+  #reset-perks { min-height: 44px; padding: 0 14px; margin-top: 14px; font-size: 14px; }
+  #grant { min-height: 40px; padding: 0 14px; margin-top: 10px; font-size: 14px; }
+  @media (prefers-reduced-motion: reduce) { #shop-screen { transition: none; } }
+  #points { font: 700 20px/1.4 monospace; color: #fe8; margin-bottom: 4px; }
+  #title button:active { background: rgba(255, 255, 255, 0.28); }
+  #title button.primary { min-height: 76px; font-size: 24px; font-weight: 700; background: rgba(255, 138, 61, 0.28); border-color: #ff8a3d; }
+  #title-debug { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; padding-top: 14px;
+                 border-top: 1px solid rgba(255, 255, 255, 0.2); width: min(86vw, 420px); }
+  #drop-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  #title #drop-chips button.chip { width: auto; min-height: 40px; padding: 0 12px; font-size: 14px; }
+  #title #drop-chips button.chip.sel { background: rgba(95, 233, 255, 0.25); border-color: #5fe9ff; }
+  /* キャラの選択: 選んだ方が光る。次回も覚える */
+  #char-chips { display: flex; gap: 8px; width: min(86vw, 420px); }
+  #title #char-chips button.char { flex: 1; width: auto; min-height: 84px; padding: 8px 6px; font-size: 16px; display: flex;
+                                   flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  #title #char-chips button.char small { font-size: 11px; line-height: 1.4; color: #cde; }
+  #title #char-chips button.char.sel { background: rgba(255, 138, 61, 0.25); border-color: #ff8a3d; }
+  #title-debug .label { color: #9aa; font-size: 13px; }
+  #title-debug button { min-height: 48px; font-size: 16px; }
+  #title label { color: #cde; font-size: 16px; cursor: pointer; user-select: none; }
+  #title input[type="checkbox"] { width: 20px; height: 20px; vertical-align: middle; margin-right: 8px; }
+  @media (prefers-reduced-motion: reduce) { #title { transition: none; } }
+  /* スタンピード (強い波) の間だけ、画面の上に出す。ふわっと現れて、終わるとふわっと消える (点滅しない) */
+  #stampede { position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top) + 14px); text-align: center;
+              font: 700 26px/1.2 sans-serif; font-style: italic; letter-spacing: 0.12em; color: #ff8a3d; pointer-events: none;
+              text-shadow: 0 0 6px #000, 0 0 12px rgba(255, 90, 0, 0.55); opacity: 0; transition: opacity 0.8s ease; }
+  #stampede.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #stampede { transition: none; } }
+  /* スタンピードの始まりの演出 (1 回だけ。点滅しない): 文字がドンと収まり、枠が画面いっぱいに広がりながら消える */
+  /* 始まりは画面の上から 22% の位置 (目に入りやすい) でドンと現れ、少し見せてから、上端 (元の位置) へスライドして留まる (邪魔にならない) */
+  #stampede.show { animation: stampede-intro 1.8s linear forwards; }
+  @keyframes stampede-intro {
+    0%   { transform: translateY(calc(22vh - 14px)) scale(2.2); animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1); }
+    25%  { transform: translateY(calc(22vh - 14px)) scale(1); }
+    70%  { transform: translateY(calc(22vh - 14px)) scale(1); animation-timing-function: ease-in-out; }
+    100% { transform: translateY(0) scale(1); }
+  }
+  #stampede-burst { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+  #stampede-burst i { position: absolute; inset: 0; border: 4px solid #ff8a3d; border-radius: 18px; opacity: 0; transform: scale(0.3);
+                      box-shadow: 0 0 18px rgba(255, 120, 0, 0.55), inset 0 0 18px rgba(255, 120, 0, 0.35); }
+  #stampede-burst.go i { animation: stampede-burst 0.95s cubic-bezier(0.15, 0.7, 0.3, 1) forwards; }
+  #stampede-burst.go i:nth-child(2) { animation-delay: 0.16s; border-width: 2px; }
+  @keyframes stampede-burst { 0% { opacity: 0.9; transform: scale(0.3); } 100% { opacity: 0; transform: scale(1.12); } }
+  @media (prefers-reduced-motion: reduce) { #stampede.show { animation: none; } #stampede-burst { display: none; } }
+  /* レベルアップ: ゲームを止めて、強化のカードを 3 枚出す。点滅させず、ゆっくり現れる */
+  #upgrade { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 14px; background: rgba(0, 0, 0, 0.6); color: #fff; font: 16px/1.5 sans-serif;
+             opacity: 0; transition: opacity 0.5s ease; pointer-events: none; }
+  #upgrade.show { opacity: 1; pointer-events: auto; }
+  #upgrade-title { font: 20px/1.5 sans-serif; margin-bottom: 6px; text-align: center; }
+  #upgrade button { width: min(86vw, 420px); min-height: 72px; font: 20px/1.4 sans-serif; color: #fff; cursor: pointer;
+                    background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 12px; }
+  #upgrade button:active { background: rgba(255, 255, 255, 0.28); }
+  @media (prefers-reduced-motion: reduce) { #upgrade { transition: none; } }
+  /* ゲームオーバー: 点滅させず、約 1 秒かけて静かに現れる */
+  #gameover { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+              text-align: center; white-space: pre; color: #fff; font: 28px/1.6 monospace; background: rgba(0, 0, 0, 0.5);
+              opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+  #gameover.show { opacity: 1; }
+</style>
+<style>#title-debug,#grant{display:none!important}</style>
+<script>try{if(location.search)history.replaceState(null,"",location.pathname)}catch(_){}</script>
+</head>
+<body>
+<!-- canvas id must match the app's window canvas selector (Bevy: canvas: Some("#bevy".into())) -->
+<div id="wrap"><canvas id="bevy"></canvas></div>
+<div id="info">loading...</div>
+<div id="stats"></div>
+<div id="sys"></div>
+<div id="kills"></div>
+<div id="level"></div>
+<div id="gems"></div>
+<div id="skill" data-press="0" class="ready">Skill</div>
+<script>
+  // スキルのボタン: 指が触れた瞬間に反応させる (data-press をゲーム側が読んで、0 に戻す)
+  document.getElementById('skill').addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.setAttribute('data-press', '1');
+  });
+</script>
+<div id="stampede-burst"><i></i><i></i></div>
+<div id="stampede">Stampede!!</div>
+<div id="gameover"></div>
+<!-- タイトル画面: 最初から表示しておく (class="show")。ボタンの選び方は data-* に入れて、ゲーム側 (Rust) が読み取る -->
+<div id="title" class="show">
+  <div id="title-name">SURVIVOR LAB</div>
+  <div id="points">ポイント 0</div>
+  <div id="char-chips">
+    <button type="button" class="char" data-char="pulsar"><b>パルサー</b><small>バランス型<br>Skill: 衝撃波 (周囲を一気に攻撃)</small></button>
+    <button type="button" class="char" data-char="runner"><b>ランサー</b><small>足が速い・体力低め・前方を素早く斬る<br>Skill: ダッシュ (走って敵を貫く)</small></button>
+    <button type="button" class="char" data-char="guarder"><b>ガーダー</b><small>体力が高い・足がとても遅い・回る盾で守る<br>Skill: 城壁 (その場に壁を立てて、敵を止めて傷つける)</small></button>
+  </div>
+  <button class="primary" data-start="0" data-lv="1">スタート</button>
+  <button type="button" id="open-shop">店 (ポイントで強化)</button>
+  <div id="title-debug">
+    <div class="label">デバッグ (途中の状態から始める。強さは、その時刻の想定のレベルに合わせる)</div>
+    <button data-start="45">スタンピード直前 (0:45)</button>
+    <button data-start="80">重装が出る頃 (1:20)</button>
+    <button data-start="155">重量級が出る頃 (2:35)</button>
+    <button data-start="300">後半 (5:00)</button>
+    <label><input type="checkbox" id="god">無敵 (体力が減らない)</label>
+    <div class="label">経験値の入り方 (結晶は、拾うと経験値。割合が低いほど、1 個が大きい。選んだものは、次回も覚える)</div>
+    <div id="drop-chips">
+      <button type="button" class="chip" data-gem="auto">自動 (従来)</button>
+      <button type="button" class="chip" data-gem="10">結晶 10%</button>
+      <button type="button" class="chip" data-gem="20">結晶 20%</button>
+      <button type="button" class="chip" data-gem="50">結晶 50%</button>
+      <button type="button" class="chip" data-gem="100">結晶 100%</button>
+    </div>
+  </div>
+</div>
+<!-- 店の画面: 文字 (名前、段階、値段、ポイント) と購入は、ゲーム側 (Rust) が担当する。ボタンを押すと #shop の data-buy に強化の名前が入る -->
+<div id="shop-screen">
+  <div id="shop-head">
+    <button type="button" id="shop-back">← もどる</button>
+    <div id="shop-points">ポイント 0</div>
+  </div>
+  <div id="shop-name">店</div>
+  <div id="shop-note">ポイントで、永続強化を買います。買った分は、次回からずっと効きます。</div>
+  <div id="shop">
+    <div class="perk"><div><div class="perk-name" id="shop-health-name"></div><div class="perk-lv" id="shop-health-lv"></div></div>
+      <button type="button" id="shop-health" data-perk="health"></button></div>
+    <div class="perk"><div><div class="perk-name" id="shop-attack-name"></div><div class="perk-lv" id="shop-attack-lv"></div></div>
+      <button type="button" id="shop-attack" data-perk="attack"></button></div>
+    <div class="perk"><div><div class="perk-name" id="shop-speed-name"></div><div class="perk-lv" id="shop-speed-lv"></div></div>
+      <button type="button" id="shop-speed" data-perk="speed"></button></div>
+    <div class="perk"><div><div class="perk-name" id="shop-pickup-name"></div><div class="perk-lv" id="shop-pickup-lv"></div></div>
+      <button type="button" id="shop-pickup" data-perk="pickup"></button></div>
+    <div class="perk"><div><div class="perk-name" id="shop-carry-name"></div><div class="perk-lv" id="shop-carry-lv"></div></div>
+      <button type="button" id="shop-carry" data-perk="carry"></button></div>
+  </div>
+  <button type="button" id="reset-perks">強化をリセット (全額もどる)</button>
+  <button type="button" id="erase-save">セーブデータを消す (ポイントも強化も 0)</button>
+  <button type="button" id="grant">ポイント +500 (確認用)</button>
+</div>
+<script type="module">
+  // タイトル画面のボタンが押されたら、選び方を data-* に入れて、go = 1 にする (ゲーム側 (Rust) が読み取って始める)
+  const title = document.getElementById("title");
+  const god = document.getElementById("god");
+  // 周回の持ち越しポイント (ゲームオーバーのとき、ゲーム側 (Rust) が足して保存する)。保存できない環境では 0 のまま
+  try { document.getElementById("points").textContent = "ポイント " + (parseInt(localStorage.getItem("survivorlab.points"), 10) || 0); } catch (_) { /* 保存なしで続ける */ }
+  // 「無敵」のスイッチは、次回も覚えておく (保存できない環境でも動くように、エラーは無視する)
+  try { god.checked = localStorage.getItem("survivorlab.god") === "1"; } catch (_) { /* 保存なしで続ける */ }
+  god.addEventListener("change", () => {
+    try { localStorage.setItem("survivorlab.god", god.checked ? "1" : "0"); } catch (_) { /* 無視 */ }
+  });
+  // 経験値の入り方の選択 (チップ)。選んだものは、次回も覚える (保存できない環境でも動くように、エラーは無視する)
+  const chips = title.querySelectorAll("button.chip[data-gem]");
+  let gemValue = "20";
+  try { gemValue = localStorage.getItem("survivorlab.gem") || "20"; } catch (_) { /* 保存なしで続ける */ }
+  const markSelected = () => chips.forEach((c) => c.classList.toggle("sel", c.dataset.gem === gemValue));
+  markSelected();
+  chips.forEach((c) => c.addEventListener("click", () => {
+    gemValue = c.dataset.gem;
+    try { localStorage.setItem("survivorlab.gem", gemValue); } catch (_) { /* 無視 */ }
+    markSelected();
+  }));
+  // キャラの選択。選んだものは、次回も覚える (保存できない環境でも動くように、エラーは無視する)
+  const charButtons = title.querySelectorAll("button.char[data-char]");
+  let charValue = "pulsar";
+  try { charValue = localStorage.getItem("survivorlab.char") || "pulsar"; } catch (_) { /* 保存なしで続ける */ }
+  if (![...charButtons].some((c) => c.dataset.char === charValue)) charValue = "pulsar";
+  const markChar = () => charButtons.forEach((c) => c.classList.toggle("sel", c.dataset.char === charValue));
+  markChar();
+  charButtons.forEach((c) => c.addEventListener("click", () => {
+    charValue = c.dataset.char;
+    try { localStorage.setItem("survivorlab.char", charValue); } catch (_) { /* 無視 */ }
+    markChar();
+  }));
+  // 店のボタン: 押したら、買いたい強化の名前を data-buy に入れる (買えるかの判断と保存は、ゲーム側 (Rust))
+  const shop = document.getElementById("shop");
+  // 店の画面を開く・閉じる (タイトルとは別の画面)
+  const shopScreen = document.getElementById("shop-screen");
+  document.getElementById("open-shop").addEventListener("click", () => shopScreen.classList.add("show"));
+  document.getElementById("shop-back").addEventListener("click", () => shopScreen.classList.remove("show"));
+  document.getElementById("grant").addEventListener("click", () => { shop.dataset.buy = "debug-points"; });
+  // リセットは、誤タップを防ぐため 2 回押し (1 回目で確認の文字になり、3 秒以内にもう一度押すと実行)
+  const twoTap = (id, action) => {
+    const btn = document.getElementById(id);
+    const label = btn.textContent;
+    let timer = 0;
+    btn.addEventListener("click", () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = 0;
+        btn.textContent = label;
+        shop.dataset.buy = action;
+      } else {
+        btn.textContent = "もう一度押すと、実行します";
+        timer = setTimeout(() => { timer = 0; btn.textContent = label; }, 3000);
+      }
+    });
+  };
+  twoTap("reset-perks", "reset");
+  twoTap("erase-save", "erase-save");
+  for (const b of shop.querySelectorAll("button[data-perk]")) {
+    b.addEventListener("click", () => { shop.dataset.buy = b.dataset.perk; });
+  }
+  for (const b of title.querySelectorAll("button[data-start]")) {
+    b.addEventListener("click", () => {
+      title.dataset.start = b.dataset.start;
+      title.dataset.lv = b.dataset.lv || "1"; // 指定がなければ、時刻に合わせて、ゲーム側が決める
+      title.dataset.god = god.checked ? "1" : "0";
+      title.dataset.gem = gemValue;
+      title.dataset.char = charValue;
+      title.dataset.go = "1";
+    });
+  }
+</script>
+<div id="upgrade">
+  <div id="upgrade-title">レベルアップ! 強化を 1 つ選んでください</div>
+  <button id="up0"></button>
+  <button id="up1"></button>
+  <button id="up2"></button>
+</div>
+<script type="module">
+  // 強化のカードが押されたら、その番号を data-choice に入れる (ゲーム側 (Rust) が読み取る)
+  const upgrade = document.getElementById("upgrade");
+  for (let i = 0; i < 3; i++) {
+    document.getElementById("up" + i).addEventListener("click", () => { upgrade.dataset.choice = String(i); });
+  }
+</script>
+<script type="module">
+  // 性能表示: FPS / 1フレームの平均時間 / 直近1秒の最悪値 (ブラウザの描画フレーム間隔で測る)
+  {
+    const stats = document.getElementById("stats");
+    const q = new URLSearchParams(location.search);
+    const label = `n=${q.get("n") ?? "既定"}${q.get("sep") === "0" ? " sep=0" : ""}`;
+    let last = performance.now(), frames = 0, sum = 0, worst = 0;
+    const tick = (now) => {
+      const dt = now - last;
+      last = now;
+      frames++; sum += dt; if (dt > worst) worst = dt;
+      if (sum >= 1000) {
+        stats.textContent = `${label}\n${(frames * 1000 / sum).toFixed(0)} FPS\navg ${(sum / frames).toFixed(1)} ms\nworst ${worst.toFixed(1)} ms`;
+        frames = 0; sum = 0; worst = 0;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+</script>
+<script type="module">
+  const info = document.getElementById("info");
+  // キャッシュ回避のため build.json は常に no-store で取得し、その id を各ファイルの ?v= に使う
+  const getBuild = async () => (await fetch("build.json", { cache: "no-store" })).json();
+
+  try {
+    const build = await getBuild();
+    info.textContent = `build ${build.id}`;
+    const mod = await import(`./app.js?v=${build.id}`);
+
+    // wasm を自前で取得して読み込み進捗を表示する (表示は展開後サイズ基準)
+    const res = await fetch(`./app_bg.wasm?v=${build.id}`);
+    if (!res.ok) throw new Error(`wasm HTTP ${res.status}`);
+    const reader = res.body.getReader();
+    let loaded = 0;
+    const stream = new ReadableStream({
+      async pull(controller) {
+        const { done, value } = await reader.read();
+        if (done) { controller.close(); return; }
+        loaded += value.length;
+        const pct = build.wasm_bytes ? Math.min(99, Math.floor((loaded / build.wasm_bytes) * 100)) : "?";
+        info.textContent = `build ${build.id}  loading ${pct}%`;
+        controller.enqueue(value);
+      },
+    });
+    const wasmResponse = new Response(stream, { headers: { "Content-Type": "application/wasm" } });
+
+    // Bevy は終了時に制御フロー用の例外を投げることがあるため握りつぶす
+    await mod.default({ module_or_path: wasmResponse }).catch((e) => {
+      if (!String(e).includes("Using exceptions for control flow")) throw e;
+    });
+
+    info.textContent = `build ${build.id}`;
+
+    // Auto-reload when a new build is published. To save mobile data: check only while the page is visible,
+    // every 10 s, and immediately when the page becomes visible again (one check is about 0.8 KB).
+    const CHECK_MS = 10000;
+    const check = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const latest = await getBuild();
+        if (latest.id !== build.id) location.reload();
+      } catch (_) { /* ignore transient network errors */ }
+    };
+    setInterval(check, CHECK_MS);
+    document.addEventListener("visibilitychange", check);
+  } catch (e) {
+    info.textContent = "error: " + e;
+  }
+</script>
+</body>
+</html>
